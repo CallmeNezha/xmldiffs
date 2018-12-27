@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='xmldiffs',
-    version='0.0.1',
+    version='0.0.2',
     entry_points = {
         'console_scripts': ['xmldiffs=xmldiffs.command_line:run_main'],
     },
@@ -13,7 +13,7 @@ setuptools.setup(
     description="Compare two XML files",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="",
+    url="https://github.com/CallmeNezha/xmldiffs",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python",

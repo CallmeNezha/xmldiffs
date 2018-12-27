@@ -36,6 +36,7 @@ import argparse
 import configparser
 
 config = None
+
 def read_cfg(cfg_fpath):
     diff_cfg = {}
 
@@ -156,14 +157,13 @@ def xmldiffs(label1, file1, label2, file2, diffargs=["-u"]):
 
 
 def run_main():
+    global config
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument("file1", help="diff xml 1", type=str)
     parser.add_argument("file2", help="diff xml 2", type=str)
     parser.add_argument("-o", "--outdir", help="output compared file dir", type=str)
     parser.add_argument("-d", "--diffparams", help="diff tool command line parameters, default=\"-u\")", type=str)
     parser.add_argument("-g", "--cfg", help="config file", type=str)
-
-    
 
     
     args = parser.parse_args()
