@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='xmldiffs',
-    version='0.0.3',
+    version='0.0.4',
     entry_points = {
         'console_scripts': ['xmldiffs=xmldiffs.command_line:run_main'],
     },

@@ -130,7 +130,7 @@ else:
 def write_sorted_file(fpath, outdir=None, cfg=None):
     if outdir is not None:
         fbasename = os.path.splitext(os.path.basename(fpath))[0]
-        sorted_fpath = os.path.join(outdir, "{}.cmp.xml".format(fpath))
+        sorted_fpath = os.path.join(outdir, "{}.cmp.xml".format(fbasename))
         tmp = unicode_writer(open(sorted_fpath, 'w'))
     else:
         tmp = unicode_writer(NamedTemporaryFile('w'))
