@@ -35,7 +35,6 @@ import subprocess
 import argparse
 import configparser
 
-config = None
 
 def read_cfg(cfg_fpath):
     diff_cfg = {}
@@ -68,8 +67,8 @@ def read_cfg(cfg_fpath):
 def attr_str(k, v):
     return "{}=\"{}\"".format(k,v)
 
-def node_str(n, level, ignore_attrs=[], sort_attr=None, rsort=False):
-    attrs = sorted(n.attrib.items()) if not rsort else reversed(sorted(n.attrib.items()))
+def node_str(n, ignore_attrs=[], sort_attr=None):
+    attrs = sorted(n.attrib.items())
     index = next((i for i,v in enumerate(attrs) if v[0].lower() == sort_attr), None)
     attrs = [attrs[index]] + attrs[:index] + attrs[index+1:] if index else attrs
     astr = " ".join(attr_str(k,v) for k,v in attrs if k.lower() not in ignore_attrs)
@@ -83,12 +82,14 @@ def node_str(n, level, ignore_attrs=[], sort_attr=None, rsort=False):
 def indent(s, level):
     return "  " * level + s
 
-def write_sorted(stream, node, level=0):
+def write_sorted(stream, node, level=0, cfg={}):
 
-    sort_attr, sort_method = config[level]["sort"] if level in config else (None, "ascend")
-    rsort = False if sort_method == "ascend" else True
-    ignore_attrs = config[level]["ignore_attrs"] if level in config else []
-    ignore_tags = config[level]["ignore_tags"] if level in config else []
+    child_sort_attr, child_sort_method = cfg[level+1]["sort"] if level+1 in cfg else (None, "ascend")
+    sort_attr, sort_method = cfg[level]["sort"] if level in cfg else (None, "ascend")
+    rsort = False if child_sort_method == "ascend" else True
+    child_ignore_attrs = cfg[level+1]["ignore_attrs"] if level+1 in cfg else []
+    ignore_attrs = cfg[level]["ignore_attrs"] if level in cfg else []
+    ignore_tags = cfg[level]["ignore_tags"] if level in cfg else []
     if node.tag.lower() in ignore_tags:
         return
 
@@ -97,22 +98,21 @@ def write_sorted(stream, node, level=0):
     tail = (node.tail or "").strip()
 
     def node_key(n):
-        return node_str(n, level, ignore_attrs, sort_attr, rsort)
+        return node_str(n, child_ignore_attrs, child_sort_attr)
 
     if children or text:
-        children.sort(key=node_key)
-
-        stream.write(indent("<" + node_str(node, level, ignore_attrs, sort_attr, rsort) + ">\n", level))
+        children.sort(key=node_key, reverse=rsort)
+        stream.write(indent("<" + node_str(node, ignore_attrs, sort_attr) + ">\n", level))
 
         if text:
             stream.write(indent(text + "\n", level))
 
         for child in children:
-            write_sorted(stream, child, level + 1)
+            write_sorted(stream, child, level + 1, cfg)
 
         stream.write(indent("</" + node.tag + ">\n", level))
     else:
-        stream.write(indent("<" + node_str(node, level, ignore_attrs, sort_attr, rsort) + "/>\n", level))
+        stream.write(indent("<" + node_str(node, ignore_attrs, sort_attr) + "/>\n", level))
 
     if tail:
         stream.write(indent(tail + "\n", level))
@@ -127,26 +127,18 @@ else:
     def unicode_writer(fp):
         return fp
 
-def write_sorted_files(file1_path, file2_path, outdir=None):
+def write_sorted_file(fpath, outdir=None, cfg=None):
     if outdir is not None:
-        file1_basename = os.path.splitext(os.path.basename(file1_path))[0]
-        file2_basename = os.path.splitext(os.path.basename(file2_path))[0]
-        sorted_file1_path = os.path.join(outdir, "{}.cmp.xml".format(file1_basename))
-        sorted_file2_path = os.path.join(outdir, "{}.cmp.xml".format(file2_basename))
-        tmp1 = unicode_writer(open(sorted_file1_path, 'w'))
-        tmp2 = unicode_writer(open(sorted_file2_path, 'w'))
+        fbasename = os.path.splitext(os.path.basename(fpath))[0]
+        sorted_fpath = os.path.join(outdir, "{}.cmp.xml".format(fpath))
+        tmp = unicode_writer(open(sorted_fpath, 'w'))
     else:
-        tmp1 = unicode_writer(NamedTemporaryFile('w'))
-        tmp2 = unicode_writer(NamedTemporaryFile('w'))
-
-    tree = ET.parse(file1_path)
-    write_sorted(tmp1, tree.getroot())
-    tmp1.flush()
-
-    tree = ET.parse(file2_path)
-    write_sorted(tmp2, tree.getroot())
-    tmp2.flush()
-    return tmp1, tmp2
+        tmp = unicode_writer(NamedTemporaryFile('w'))
+    
+    tree = ET.parse(fpath)
+    write_sorted(tmp, tree.getroot(), cfg=cfg)
+    tmp.flush()
+    return tmp
 
 def xmldiffs(label1, file1, label2, file2, diffargs=["-u"]):
     args = [ "diff" ]
@@ -157,7 +149,6 @@ def xmldiffs(label1, file1, label2, file2, diffargs=["-u"]):
 
 
 def run_main():
-    global config
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument("file1", help="diff xml 1", type=str)
     parser.add_argument("file2", help="diff xml 2", type=str)
@@ -167,7 +158,7 @@ def run_main():
 
     
     args = parser.parse_args()
-    config = read_cfg(args.cfg or "")
+    cfg = read_cfg(args.cfg or "")
 
     if not os.path.isfile(args.file1):
         print("xmldiffs: File {} is not valid".format(args.file1))
@@ -180,12 +171,13 @@ def run_main():
         exit(-1)
     diffargs = args.diffparams.split(" ") if args.diffparams else ["-u"]
     if args.outdir:
-        write_sorted_files(args.file1, args.file2, args.outdir)
+        write_sorted_file(args.file1, args.outdir, cfg=cfg)
+        write_sorted_file(args.file2, args.outdir, cfg=cfg)
         exit(0)
     else:
-        file1, file2 = write_sorted_files(args.file1, args.file2)
+        file1 = write_sorted_file(args.file1, cfg=cfg)
+        file2 = write_sorted_file(args.file2, cfg=cfg)
         exit(xmldiffs(args.file1, file1, args.file2, file2, diffargs))
-
 
 if __name__ == '__main__':
     run_main()
